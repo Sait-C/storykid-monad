@@ -1,15 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useOpenConnectModal } from "@0xsequence/connect"
-import {
-  useAccount,
-  useDisconnect,
-  useWaitForTransactionReceipt,
-  useWriteContract,
-} from "wagmi"
+import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi"
 import { Button } from "@/components/ui/button"
 import { monadTestnet } from "@/lib/chains"
+import { useSafeDisconnect } from "@/lib/use-safe-disconnect"
 
 const MONAD_CHAIN_ID = monadTestnet.id
 const contractAddress = process.env.NEXT_PUBLIC_MONAD_NFT_CONTRACT as `0x${string}` | undefined
@@ -35,13 +31,20 @@ function formatAddress(addr?: string | null) {
 export function WalletActions() {
   const { setOpenConnectModal } = useOpenConnectModal()
   const { address, isConnected } = useAccount()
-  const { disconnect } = useDisconnect()
+  const { disconnect } = useSafeDisconnect()
   const { data: txHash, writeContract, isPending, error } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash })
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const formattedAddress = useMemo(() => formatAddress(address), [address])
-  const mintDisabled = !isConnected || isPending || isConfirming || !contractAddress
+  const hasConnectedSession = isMounted && isConnected
+  const mintDisabled = !hasConnectedSession || isPending || isConfirming || !contractAddress
+  const statusLabel = hasConnectedSession ? formattedAddress : "Sosyal giriş yapılmadı"
 
   async function handleMint() {
     if (!address || !contractAddress) return
@@ -86,12 +89,12 @@ export function WalletActions() {
       <div className="space-y-1">
         <p className="text-sm font-medium text-muted-foreground">Monad Testnet akıllı cüzdanın</p>
         <p className="text-base font-semibold">
-          {isConnected ? formattedAddress : "Sosyal giriş yapılmadı"}
+          {statusLabel}
         </p>
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-2">
-        {isConnected ? (
+        {hasConnectedSession ? (
           <Button variant="outline" onClick={() => disconnect()}>
             Oturumu kapat
           </Button>
