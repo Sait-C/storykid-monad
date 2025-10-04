@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useOpenConnectModal } from "@0xsequence/connect"
 import {
   useAccount,
@@ -39,9 +39,16 @@ export function WalletActions() {
   const { data: txHash, writeContract, isPending, error } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash })
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const formattedAddress = useMemo(() => formatAddress(address), [address])
-  const mintDisabled = !isConnected || isPending || isConfirming || !contractAddress
+  const hasConnectedSession = isMounted && isConnected
+  const mintDisabled = !hasConnectedSession || isPending || isConfirming || !contractAddress
+  const statusLabel = hasConnectedSession ? formattedAddress : "Sosyal giriş yapılmadı"
 
   async function handleMint() {
     if (!address || !contractAddress) return
@@ -86,12 +93,12 @@ export function WalletActions() {
       <div className="space-y-1">
         <p className="text-sm font-medium text-muted-foreground">Monad Testnet akıllı cüzdanın</p>
         <p className="text-base font-semibold">
-          {isConnected ? formattedAddress : "Sosyal giriş yapılmadı"}
+          {statusLabel}
         </p>
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-2">
-        {isConnected ? (
+        {hasConnectedSession ? (
           <Button variant="outline" onClick={() => disconnect()}>
             Oturumu kapat
           </Button>
