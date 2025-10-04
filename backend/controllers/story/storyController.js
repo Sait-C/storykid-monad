@@ -1,5 +1,4 @@
 const ErrorResponse = require("../../utils/errorResponse");
-const ProgressService = require("../../services/socket/ProgressService");
 const StoryKidNFTService = require("../../services/contract/StoryKidNFTService");
 const { aiAgentPayloadSchema } = require("../../services/ai/schemas");
 
@@ -43,23 +42,12 @@ exports.createStory = asyncHandler(async (req, res, next) => {
       );
     }
 
-    // Initialize progress tracker
-    const progressService = new ProgressService(req.app.get('io'));
-    const progressTracker = progressService.createProgressTracker(
-      to, // Use the 'to' address as the session identifier
-      'story'
-    );
-
-    progressTracker.update("story.progress.starting", 0);
-
     // Generate story using AI service
     const generatedStory = await aiService.createStoryFromAgentRequest(
       storyInfo,
       language,
-      progressTracker
     );
     
-    progressTracker.update("story.progress.minting", 80);
     console.log("Generated Story: ", generatedStory.title, generatedStory.content, generatedStory.image.charAt(5));
 
     // Mint the story as an NFT
@@ -71,17 +59,10 @@ exports.createStory = asyncHandler(async (req, res, next) => {
     );
 
     if (!mintResult.success) {
-      progressTracker.error(mintResult.error);
       return next(
         new ErrorResponse(`Failed to mint NFT: ${mintResult.error}`, 500)
       );
     }
-
-    progressTracker.complete({
-      tokenId: mintResult.tokenId,
-      transactionHash: mintResult.transactionHash,
-      blockNumber: mintResult.blockNumber
-    });
 
     res.status(201).json({
       success: true,
