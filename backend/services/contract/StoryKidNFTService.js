@@ -4,7 +4,7 @@ const fs = require('fs');
 
 class StoryKidNFTService {
     constructor() {
-        this.contractAddress = '0x0566197A3fd2dDcC469c666661C00C4bBc588FAD';
+        this.contractAddress = '0x56e07dfC2c8637328D5C78679F9dDef1EB02b684';
         this.rpcUrl = process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz';
         this.privateKey = process.env.PRIVATE_KEY;
         
