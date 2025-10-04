@@ -32,6 +32,80 @@ This Next.js frontend now bundles Sequence Embedded Wallet so families can sign 
 
    The app expects to run on `http://localhost:3000`. Ensure your Google config includes this origin.
 
+## Troubleshooting
+
+### 🚀 Quick Start Guides
+
+- **⚡ Need a quick fix?** → [QUICK_FIX.md](./QUICK_FIX.md) (5 minutes)
+- **📖 Step-by-step setup?** → [CONFIGURATION_GUIDE.md](./CONFIGURATION_GUIDE.md) (30 minutes)
+- **🔧 Detailed troubleshooting?** → [SEQUENCE_TROUBLESHOOTING.md](./SEQUENCE_TROUBLESHOOTING.md)
+
+---
+
+## Common Errors
+
+### "WebrpcEndpoint: endpoint error" when connecting wallet
+
+This error occurs when the Sequence WaaS API keys are invalid or misconfigured. To fix:
+
+1. **Verify your API keys** in [Sequence Builder](https://sequence.build/):
+   - Go to your project settings
+   - Copy the **Project Access Key** and **WaaS Config Key**
+   - Make sure you're using keys from the correct environment (testnet/mainnet)
+
+2. **Check Google OAuth configuration**:
+   - The Google Client ID must be registered in Sequence Builder
+   - Authorized redirect URIs must include `http://localhost:3000`
+   - The OAuth consent screen must be properly configured
+
+3. **Regenerate keys if needed**:
+   - If your keys are old or invalid, regenerate them in Sequence Builder
+   - Update your `.env.local` file with the new keys
+   - Restart the dev server
+
+4. **Test without Google OAuth first**:
+   - Temporarily remove `NEXT_PUBLIC_GOOGLE_CLIENT_ID` from `.env.local`
+   - Restart the dev server
+   - If this works, the issue is with Google OAuth configuration
+
+### "AnswerIncorrect: The provided answer is incorrect"
+
+This error occurs during the WaaS authentication challenge. This is a **configuration issue in Sequence Builder**.
+
+**👉 See [SEQUENCE_TROUBLESHOOTING.md](./SEQUENCE_TROUBLESHOOTING.md) for detailed solutions.**
+
+**Quick Fix:**
+1. Clear browser local storage and cookies for `localhost:3000`
+2. Go to [Sequence Builder](https://sequence.build/) → Your Project → Settings → WaaS Configuration
+3. Temporarily **disable PIN authentication** for testing
+4. Ensure Google OAuth redirect URIs include:
+   - `http://localhost:3000`
+   - `https://waas.sequence.app`
+   - `https://api.sequence.app`
+5. Try connecting again in an incognito window
+
+Common causes:
+- PIN authentication is enabled but user hasn't set a PIN
+- Google OAuth redirect URIs are incomplete
+- Email verification flow is failing
+- Stale session data in browser
+
+**Still stuck?** Check the comprehensive guide in [SEQUENCE_TROUBLESHOOTING.md](./SEQUENCE_TROUBLESHOOTING.md)
+
+### Environment Variable Format
+
+⚠️ **Important:** Do NOT use quotes in `.env.local`:
+
+```bash
+# ✅ CORRECT
+NEXT_PUBLIC_SEQUENCE_PROJECT_ACCESS_KEY=AQAAAAAAAJbd_5JOcE50AqglZCtvu51YlGI
+
+# ❌ WRONG (will cause errors)
+NEXT_PUBLIC_SEQUENCE_PROJECT_ACCESS_KEY='AQAAAAAAAJbd_5JOcE50AqglZCtvu51YlGI'
+```
+
+For more help, see the [Sequence documentation](https://docs.sequence.xyz/)
+
 ## What was added
 
 - `app/providers.tsx`: wraps the app with `SequenceConnect`, locking wagmi to Monad Testnet and enabling Google social login.

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useOpenConnectModal } from "@0xsequence/connect"
 import {
   useAccount,
@@ -38,6 +38,7 @@ export function WalletActions() {
   const { disconnect } = useDisconnect()
   const { data: txHash, writeContract, isPending, error } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash })
+  const [connectionError, setConnectionError] = useState<string | null>(null)
 
   const formattedAddress = useMemo(() => formatAddress(address), [address])
   const mintDisabled = !isConnected || isPending || isConfirming || !contractAddress
@@ -45,13 +46,39 @@ export function WalletActions() {
   async function handleMint() {
     if (!address || !contractAddress) return
 
-    await writeContract({
-      abi: erc721MintAbi,
-      address: contractAddress,
-      functionName: "mint",
-      args: [address, 1n],
-      chainId: MONAD_CHAIN_ID,
-    })
+    try {
+      setConnectionError(null)
+      await writeContract({
+        abi: erc721MintAbi,
+        address: contractAddress,
+        functionName: "mint",
+        args: [address, 1n],
+        chainId: MONAD_CHAIN_ID,
+      })
+    } catch (err) {
+      console.error("Mint error:", err)
+      setConnectionError(err instanceof Error ? err.message : "Mint işlemi başarısız oldu")
+    }
+  }
+
+  function handleConnect() {
+    try {
+      setConnectionError(null)
+      setOpenConnectModal(true)
+    } catch (err) {
+      console.error("Connection error:", err)
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      
+      if (errorMessage.includes("AnswerIncorrect")) {
+        setConnectionError(
+          "Kimlik doğrulama hatası. Lütfen tarayıcı verilerinizi temizleyin ve tekrar deneyin. Detaylar için SEQUENCE_TROUBLESHOOTING.md dosyasına bakın."
+        )
+      } else {
+        setConnectionError(
+          "Bağlantı hatası: Lütfen .env.local dosyasındaki Sequence API anahtarlarınızı kontrol edin"
+        )
+      }
+    }
   }
 
   return (
@@ -69,7 +96,7 @@ export function WalletActions() {
             Oturumu kapat
           </Button>
         ) : (
-          <Button onClick={() => setOpenConnectModal(true)}>Google ile giriş yap</Button>
+          <Button onClick={handleConnect}>Google ile giriş yap</Button>
         )}
         <Button disabled={mintDisabled} onClick={handleMint} variant="secondary">
           Test NFT mint et
@@ -86,6 +113,9 @@ export function WalletActions() {
       {isConfirming && <p className="text-xs text-muted-foreground">Monad ağında onay bekleniyor…</p>}
       {isSuccess && <p className="text-xs text-emerald-500">Mint işlemi tamamlandı!</p>}
       {error && <p className="text-xs text-destructive">Hata: {error.message}</p>}
+      {connectionError && (
+        <p className="text-xs text-destructive max-w-md">{connectionError}</p>
+      )}
     </div>
   )
 }
