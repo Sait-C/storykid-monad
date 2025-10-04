@@ -11,6 +11,7 @@
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
+    "ethers": "^6.15.0",
     "express": "^5.1.0",
     "imaginesdk": "^1.1.0",
     "langchain": "^0.3.35",
