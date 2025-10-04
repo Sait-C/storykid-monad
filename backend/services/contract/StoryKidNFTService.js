@@ -32,7 +32,7 @@ class StoryKidNFTService {
         try {
             console.log(`Minting NFT to ${to} with title: ${title}`);
             
-            const tx = await this.contract.mintNFT(to, title, content, imageBase64);
+            const tx = await this.contract.mintNFT(to, title, content, 'test');
             const receipt = await tx.wait();
             
             // Extract tokenId from the transaction receipt
