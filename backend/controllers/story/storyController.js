@@ -60,6 +60,7 @@ exports.createStory = asyncHandler(async (req, res, next) => {
     );
     
     progressTracker.update("story.progress.minting", 80);
+    console.log("Generated Story: ", generatedStory.title, generatedStory.content, generatedStory.image.charAt(5));
 
     // Mint the story as an NFT
     const mintResult = await nftService.mintNFT(
