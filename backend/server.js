@@ -12,9 +12,7 @@ const { Server } = require('socket.io');
 dotenv.config({ path: "./config/config.env"});
 
 // Route Files
-const auth = require('./routes/auth/authRoute');
 const stories = require('./routes/story/storyRoute');
-const storyParts = require('./routes/story/storyPartRoute');
 const nft = require('./routes/nft/nftRoute');
 
 const cors = require('cors');
@@ -47,9 +45,7 @@ app.use(fileupload({ useTempFiles: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Mount routers
-app.use('/api/v1/auth', auth);
 app.use('/api/v1/stories', stories);
-app.use('/api/v1/storyparts', storyParts);
 app.use('/api/v1/nft', nft);
 
 app.use(errorHandler);

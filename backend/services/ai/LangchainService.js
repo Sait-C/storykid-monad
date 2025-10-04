@@ -1,12 +1,12 @@
-const { ChatGroq } = require("@langchain/groq");
+const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
 const { storySchema, storyPartSchema } = require("./schemas");
 const { client, Status } = require("imaginesdk");
 
 class LangchainService {
   constructor() {
-    this.model = new ChatGroq({
-      apiKey: process.env.GROQ_API_KEY,
-      model: "llama-3.3-70b-versatile",
+    this.model = new ChatGoogleGenerativeAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      model: "gemini-2.5-flash",
       temperature: 0.8,
       maxRetries: 3,
     });
@@ -15,27 +15,24 @@ class LangchainService {
   }
 
   /**
-   * Creates a new story based on a theme.
-   * The method takes a theme as input and returns structured data containing
-   * a story title, summary, content, and a thumbnail image.
+   * Creates a new story based on AI agent request.
+   * The method takes story information and returns structured data containing
+   * a story title, content, and a thumbnail image.
    */
-  async createStory(childProfile, theme, language = "en", progressTracker = null) {
+  async createStoryFromAgentRequest(storyInfo, language = "en", progressTracker = null) {
     if (progressTracker) {
       progressTracker.update("story.progress.preparing", 10);
     }
 
     const prompt = `
-      Create an engaging children's story based on the theme: "${theme}".
-      The child profile is: ${JSON.stringify(childProfile)}.
-      You need to create a story that is appropriate for the child's age and interests.
-      The child's name is ${childProfile.firstName}.
-      You need to use the child's name in the story.
+      Create an engaging children's story based on the following information: "${storyInfo}".
 
       The story should be:
       - Educational and entertaining
       - Appropriate for children
       - Contain positive messages and lessons
       - Be creative and imaginative
+      - Based on the provided story information
       
       Important: Provide the response in ${language} language.
       Important: The story should be in ${language} language. DO NOT USE ANY OTHER LANGUAGE.
@@ -55,8 +52,8 @@ class LangchainService {
       Format the response exactly like this example:
       {
         "title": "The Story Title",
-        "summary": "A brief summary of the story (2-3 sentences)",
-        "thumbnailImage": "A detailed description for generating an image that represents the story"
+        "content": "The full story content (2-3 paragraphs)",
+        "image": "A detailed description for generating an image that represents the story"
       }
     `;
 
@@ -68,11 +65,11 @@ class LangchainService {
     }
 
     // Generate thumbnail image
-    const imagePrompt = result.thumbnailImage;
+    const imagePrompt = result.image;
     const thumbnailImage = await this.generateImage(imagePrompt);
 
     // Update the result with the actual image
-    result.thumbnailImage = thumbnailImage || "";
+    result.image = thumbnailImage || "";
 
     if (progressTracker) {
       progressTracker.update("story.progress.complete", 60);

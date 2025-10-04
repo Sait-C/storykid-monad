@@ -1,191 +1,108 @@
 const ErrorResponse = require("../../utils/errorResponse");
-const Story = require("../../models/story/Story");
 const ProgressService = require("../../services/socket/ProgressService");
+const StoryKidNFTService = require("../../services/contract/StoryKidNFTService");
+const { aiAgentPayloadSchema } = require("../../services/ai/schemas");
 
 const asyncHandler = require("../../middleware/async");
 const { aiService } = require("../../services/ai/LangchainService");
+
+// Initialize NFT service
+const nftService = new StoryKidNFTService();
 
 // @desc Get all stories / Get stories of specific child profile
 // @route GET /api/v1/stories
 // @route GET /api/v1/childprofiles/:childProfileId/stories
 // @access Private
-exports.getStories = asyncHandler(async (req, res, next) => {
-  if (req.params.childProfileId) {
-    // Make sure user has permission for this operation
-    if (
-      req.user._id.toString() !== childProfile.user?.toString() &&
-      req.user.role !== "admin"
-    ) {
-      return next(
-        new ErrorResponse(
-          `User does not have permission for this operation`,
-          401
-        )
-      );
-    }
-
-    const stories = await Story.find({ owner: req.params.childProfileId });
-  
-    res.status(200).json({
+exports.getStories = asyncHandler(async (req, res, next) => {  
+    res.status(200).json({  
       success: true,
-      count: stories.length,
-      data: stories,
+      count: 0,
+      data: [],
     });
-  }
-    res.status(200).json(res.advancedResults);
 });
 
-// @desc Get single story
-// @route GET /api/v1/stories/:id
-// @access Private
-exports.getStoryById = asyncHandler(async (req, res, next) => {
-  const story = await Story.findById(req.params.id).populate("parts");
-
-  if (!story) {
-    return next(
-      new ErrorResponse(`No Story with the id of ${req.params.id}`, 404)
-    );
-  }
-
-  res.status(200).json({
-    success: true,
-    data: story,
-  });
-});
-
-// @desc Create new story
-// @route POST /api/v1/childprofiles/:childProfileId/stories
+// @desc Create new story from AI agent request
+// @route POST /api/v1/stories/create
 // @access Private
 exports.createStory = asyncHandler(async (req, res, next) => {
-  req.body.owner = req.params.childProfileId;
-
-  const childProfile = await ChildProfile.findById(req.params.childProfileId).populate({
-    path: "user",
-    populate: {
-      path: "userProfile",
-      select: "language",
-      populate: {
-        path: "language",
-        select: "name isoCode"
-      }
-    },
-  });
-
-  if (!childProfile) {
-    return next(
-      new ErrorResponse(
-        `No Child Profile with the id of ${req.params.childProfileId}`,
-        404
-      )
-    );
-  }
-
-  // Make sure user has permissions for this operation
-  if (
-    req.user._id.toString() !== childProfile.user?._id.toString() &&
-    req.user.role !== "admin"
-  ) {
-    return next(
-      new ErrorResponse(`User does not have permission for this operation`, 401)
-    );
-  }
-
-  // Initialize progress tracker
-  const progressService = new ProgressService(req.app.get('io'));
-  const progressTracker = progressService.createProgressTracker(
-    req.params.childProfileId,
-    'story'
-  );
-
-  // If theme is provided, use AI to generate a story
-  if (req.body.theme) {
-    try {
-      progressTracker.update("story.progress.starting", 0);
-
-      // Get language preference or default to English
-      const language = childProfile.user.userProfile.language.isoCode || "en";
-      
-      // Generate story using AI service
-      const generatedStory = await aiService.createStory(
-        childProfile, 
-        req.body.theme, 
-        language,
-        progressTracker
-      );
-      
-      progressTracker.update("story.progress.saving", 80);
-
-      // Map the generated story to our model fields
-      req.body.title = generatedStory.title;
-      req.body.description = generatedStory.summary;
-      req.body.thumbnailImage = generatedStory.thumbnailImage;
-
-      const story = await Story.create(req.body);
-
-      progressTracker.complete(story);
-
-      res.status(201).json({
-        success: true,
-        data: story,
-      });
-    } catch (error) {
-      progressTracker.error(error.message);
+  try {
+    // Validate the AI agent payload
+    const validationResult = aiAgentPayloadSchema.safeParse(req.body);
+    if (!validationResult.success) {
       return next(
-        new ErrorResponse(`Error generating story: ${error.message}`, 500)
+        new ErrorResponse(`Invalid payload: ${validationResult.error.issues.map(i => i.message).join(', ')}`, 400)
       );
     }
-  } else {
+
+    const { storyInfo, to, language = "en" } = validationResult.data;
+
+    // Validate Ethereum address
+    if (!/^0x[a-fA-F0-9]{40}$/.test(to)) {
+      return next(
+        new ErrorResponse(`Invalid Ethereum address format`, 400)
+      );
+    }
+
+    // Initialize progress tracker
+    const progressService = new ProgressService(req.app.get('io'));
+    const progressTracker = progressService.createProgressTracker(
+      to, // Use the 'to' address as the session identifier
+      'story'
+    );
+
+    progressTracker.update("story.progress.starting", 0);
+
+    // Generate story using AI service
+    const generatedStory = await aiService.createStoryFromAgentRequest(
+      storyInfo,
+      language,
+      progressTracker
+    );
+    
+    progressTracker.update("story.progress.minting", 80);
+
+    // Mint the story as an NFT
+    const mintResult = await nftService.mintNFT(
+      to,
+      generatedStory.title,
+      generatedStory.content,
+      generatedStory.image
+    );
+
+    if (!mintResult.success) {
+      progressTracker.error(mintResult.error);
+      return next(
+        new ErrorResponse(`Failed to mint NFT: ${mintResult.error}`, 500)
+      );
+    }
+
+    progressTracker.complete({
+      tokenId: mintResult.tokenId,
+      transactionHash: mintResult.transactionHash,
+      blockNumber: mintResult.blockNumber
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Story created and minted as NFT successfully',
+      data: {
+        story: {
+          title: generatedStory.title,
+          content: generatedStory.content,
+          image: generatedStory.image
+        },
+        nft: {
+          tokenId: mintResult.tokenId,
+          transactionHash: mintResult.transactionHash,
+          blockNumber: mintResult.blockNumber,
+          owner: to
+        }
+      }
+    });
+
+  } catch (error) {
     return next(
-      new ErrorResponse(`Theme is required`, 400)
+      new ErrorResponse(`Error creating story: ${error.message}`, 500)
     );
   }
-});
-
-// @desc Update story
-// @route PUT /api/v1/stories/:id
-// @access Private
-exports.updateStory = asyncHandler(async (req, res, next) => {
-  let story = await Story.findById(req.params.id);
-
-  if (!story) {
-    return next(
-      new ErrorResponse(`No Story with the id of ${req.params.id}`, 404)
-    );
-  }
-
-  story = await Story.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true,
-  });
-
-
-
-  res.status(200).json({
-    success: true,
-    data: story,
-  });
-});
-
-// @desc Delete story
-// @route DELETE /api/v1/stories/:id
-// @access Private
-exports.deleteStory = asyncHandler(async (req, res, next) => {
-  const story = await Story.findById(req.params.id);
-
-  if (!story) {
-    return next(
-      new ErrorResponse(`No Story with the id of ${req.params.id}`, 404)
-    );
-  }
-
-
-
-  await story.deleteOne();
-
-
-
-  res.status(200).json({
-    success: true,
-    data: {},
-  });
 });
